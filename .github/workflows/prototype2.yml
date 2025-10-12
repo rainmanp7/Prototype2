@@ -13,13 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.9, 3.10, 3.11]
+        python-version: ['3.9', '3.10', '3.11']
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -35,22 +35,22 @@ jobs:
         python prototype2_scaling.py 2>&1 | tee prototype2_results.txt
         
         # Extract key metrics from results
-        FINAL_COHERENCE=$(grep "Final Coherence" prototype2_results.txt | awk '{print $3}')
-        AVG_COHERENCE=$(grep "Average Coherence" prototype2_results.txt | awk '{print $3}')
-        TOTAL_INSIGHTS=$(grep "Total Insights" prototype2_results.txt | awk '{print $3}')
-        AVG_REWARD=$(grep "Average Reward" prototype2_results.txt | awk '{print $3}')
-        AVG_MEMORY=$(grep "Average Memory" prototype2_results.txt | awk '{print $3}')
-        AVG_TIME=$(grep "Average Step Time" prototype2_results.txt | awk '{print $5}')
+        FINAL_COHERENCE=$(grep "Final Coherence" prototype2_results.txt | awk '{print $3}' || echo "N/A")
+        AVG_COHERENCE=$(grep "Average Coherence" prototype2_results.txt | awk '{print $3}' || echo "N/A")
+        TOTAL_INSIGHTS=$(grep "Total Insights" prototype2_results.txt | awk '{print $3}' || echo "N/A")
+        AVG_REWARD=$(grep "Average Reward" prototype2_results.txt | awk '{print $3}' || echo "N/A")
+        AVG_MEMORY=$(grep "Average Memory" prototype2_results.txt | awk '{print $3}' || echo "N/A")
+        AVG_TIME=$(grep "Average Step Time" prototype2_results.txt | awk '{print $5}' || echo "N/A")
         
-        echo "::set-output name=final_coherence::$FINAL_COHERENCE"
-        echo "::set-output name=avg_coherence::$AVG_COHERENCE"
-        echo "::set-output name=total_insights::$TOTAL_INSIGHTS"
-        echo "::set-output name=avg_reward::$AVG_REWARD"
-        echo "::set-output name=avg_memory::$AVG_MEMORY"
-        echo "::set-output name=avg_time::$AVG_TIME"
+        echo "final_coherence=$FINAL_COHERENCE" >> $GITHUB_OUTPUT
+        echo "avg_coherence=$AVG_COHERENCE" >> $GITHUB_OUTPUT
+        echo "total_insights=$TOTAL_INSIGHTS" >> $GITHUB_OUTPUT
+        echo "avg_reward=$AVG_REWARD" >> $GITHUB_OUTPUT
+        echo "avg_memory=$AVG_MEMORY" >> $GITHUB_OUTPUT
+        echo "avg_time=$AVG_TIME" >> $GITHUB_OUTPUT
         
     - name: Upload Results Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: prototype2-results-${{ matrix.python-version }}
         path: |
@@ -62,13 +62,13 @@ jobs:
     needs: test-prototype2
     strategy:
       matrix:
-        python-version: [3.9]
+        python-version: ['3.9']
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download All Results
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
         
@@ -93,7 +93,7 @@ jobs:
         echo "=========================="
         
         # Check if polynomial scaling was confirmed
-        if grep -q "POLYNOMIAL SCALING CONFIRMED" artifacts/prototype2-results-3.9/prototype2_results.txt; then
+        if grep -q "POLYNOMIAL SCALING CONFIRMED" artifacts/prototype2-results-3.9/prototype2_results.txt 2>/dev/null; then
           echo "🎉 REVOLUTIONARY SCALING CONFIRMED!"
           echo "   Memory and compute scale linearly with entity count"
           echo "   This challenges fundamental assumptions in AI scaling"
@@ -109,10 +109,10 @@ jobs:
     if: always()
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download Results
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
         
@@ -124,10 +124,10 @@ jobs:
         echo "" >> PERFORMANCE_REPORT.md
         
         # Extract key metrics
-        FINAL_COH=$(grep "Final Coherence" artifacts/prototype2-results-3.9/prototype2_results.txt | awk '{print $3}' | head -1)
-        AVG_MEM=$(grep "Average Memory" artifacts/prototype2-results-3.9/prototype2_results.txt | awk '{print $3}' | head -1)
-        AVG_TIME=$(grep "Average Step Time" artifacts/prototype2-results-3.9/prototype2_results.txt | awk '{print $5}' | head -1)
-        ENTITIES=$(grep "Entities:" artifacts/prototype2-results-3.9/prototype2_results.txt | awk '{print $2}' | head -1)
+        FINAL_COH=$(grep "Final Coherence" artifacts/prototype2-results-3.9/prototype2_results.txt 2>/dev/null | awk '{print $3}' | head -1 || echo "N/A")
+        AVG_MEM=$(grep "Average Memory" artifacts/prototype2-results-3.9/prototype2_results.txt 2>/dev/null | awk '{print $3}' | head -1 || echo "N/A")
+        AVG_TIME=$(grep "Average Step Time" artifacts/prototype2-results-3.9/prototype2_results.txt 2>/dev/null | awk '{print $5}' | head -1 || echo "N/A")
+        ENTITIES=$(grep "Entities:" artifacts/prototype2-results-3.9/prototype2_results.txt 2>/dev/null | awk '{print $2}' | head -1 || echo "N/A")
         
         echo "- **Entities**: $ENTITIES across 8 domains" >> PERFORMANCE_REPORT.md
         echo "- **Final Coherence**: $FINAL_COH" >> PERFORMANCE_REPORT.md  
@@ -139,41 +139,59 @@ jobs:
         echo "" >> PERFORMANCE_REPORT.md
         
         # Calculate scaling ratios
-        if [ ! -z "$ENTITIES" ] && [ ! -z "$AVG_MEM" ]; then
-          ENTITY_RATIO=$(echo "scale=2; $ENTITIES / 4" | bc)
-          MEMORY_RATIO=$(echo "scale=2; $AVG_MEM / 50" | bc)
-          TIME_RATIO=$(echo "scale=2; $AVG_TIME / 5" | bc)
+        if [ ! -z "$ENTITIES" ] && [ "$ENTITIES" != "N/A" ] && [ ! -z "$AVG_MEM" ] && [ "$AVG_MEM" != "N/A" ]; then
+          ENTITY_RATIO=$(echo "scale=2; $ENTITIES / 4" | bc 2>/dev/null || echo "N/A")
+          MEMORY_RATIO=$(echo "scale=2; $AVG_MEM / 50" | bc 2>/dev/null || echo "N/A")
+          TIME_RATIO=$(echo "scale=2; $AVG_TIME / 5" | bc 2>/dev/null || echo "N/A")
           
           echo "- **Entity Scaling**: 4 → $ENTITIES (${ENTITY_RATIO}x)" >> PERFORMANCE_REPORT.md
           echo "- **Memory Scaling**: 50MB → ${AVG_MEM}MB (${MEMORY_RATIO}x)" >> PERFORMANCE_REPORT.md
           echo "- **Time Scaling**: 5ms → ${AVG_TIME}ms (${TIME_RATIO}x)" >> PERFORMANCE_REPORT.md
           echo "" >> PERFORMANCE_REPORT.md
           
-          # Determine scaling type
-          if (( $(echo "$MEMORY_RATIO <= $ENTITY_RATIO * 2" | bc -l) )) && (( $(echo "$TIME_RATIO <= $ENTITY_RATIO * 2" | bc -l) )); then
-            echo "## 🎉 POLYNOMIAL SCALING CONFIRMED" >> PERFORMANCE_REPORT.md
-            echo "" >> PERFORMANCE_REPORT.md
-            echo "This demonstrates **O(n) scaling** - memory and compute requirements grow linearly with entity count." >> PERFORMANCE_REPORT.md
-            echo "" >> PERFORMANCE_REPORT.md
-            echo "**Implications:**" >> PERFORMANCE_REPORT.md
-            echo "- 1000 entities would require ~$(echo "scale=0; $AVG_MEM * 1000 / $ENTITIES" | bc)MB memory" >> PERFORMANCE_REPORT.md
-            echo "- Human-brain scale (86B entities) becomes computationally feasible" >> PERFORMANCE_REPORT.md
-            echo "- Democratizes superintelligence development" >> PERFORMANCE_REPORT.md
+          # Determine scaling type (simplified check)
+          echo "## Scaling Assessment" >> PERFORMANCE_REPORT.md
+          echo "" >> PERFORMANCE_REPORT.md
+          
+          if [ "$ENTITY_RATIO" != "N/A" ] && [ "$MEMORY_RATIO" != "N/A" ]; then
+            # Check if memory scaling is roughly linear (within 2x of entity scaling)
+            MEM_CHECK=$(echo "$MEMORY_RATIO <= $ENTITY_RATIO * 2" | bc -l 2>/dev/null || echo "0")
+            TIME_CHECK=$(echo "$TIME_RATIO <= $ENTITY_RATIO * 2" | bc -l 2>/dev/null || echo "0")
+            
+            if [ "$MEM_CHECK" = "1" ] && [ "$TIME_CHECK" = "1" ]; then
+              echo "## 🎉 POLYNOMIAL SCALING CONFIRMED" >> PERFORMANCE_REPORT.md
+              echo "" >> PERFORMANCE_REPORT.md
+              echo "This demonstrates **O(n) scaling** - memory and compute requirements grow linearly with entity count." >> PERFORMANCE_REPORT.md
+              echo "" >> PERFORMANCE_REPORT.md
+              echo "**Implications:**" >> PERFORMANCE_REPORT.md
+              PROJECTED_MEM=$(echo "scale=0; $AVG_MEM * 1000 / $ENTITIES" | bc 2>/dev/null || echo "N/A")
+              echo "- 1000 entities would require ~${PROJECTED_MEM}MB memory" >> PERFORMANCE_REPORT.md
+              echo "- Human-brain scale (86B entities) becomes computationally feasible" >> PERFORMANCE_REPORT.md
+              echo "- Democratizes superintelligence development" >> PERFORMANCE_REPORT.md
+            else
+              echo "## ⚠️ Sub-linear Scaling" >> PERFORMANCE_REPORT.md
+              echo "" >> PERFORMANCE_REPORT.md
+              echo "Scaling better than exponential but needs optimization for true polynomial scaling." >> PERFORMANCE_REPORT.md
+            fi
           else
-            echo "## ⚠️ Sub-linear Scaling" >> PERFORMANCE_REPORT.md
-            echo "" >> PERFORMANCE_REPORT.md
-            echo "Scaling better than exponential but needs optimization for true polynomial scaling." >> PERFORMANCE_REPORT.md
+            echo "Insufficient data for scaling analysis." >> PERFORMANCE_REPORT.md
           fi
+        else
+          echo "Unable to calculate scaling ratios - missing data." >> PERFORMANCE_REPORT.md
         fi
         
         echo "" >> PERFORMANCE_REPORT.md
         echo "## Raw Results" >> PERFORMANCE_REPORT.md
         echo "\`\`\`" >> PERFORMANCE_REPORT.md
-        cat artifacts/prototype2-results-3.9/prototype2_results.txt >> PERFORMANCE_REPORT.md
+        if [ -f "artifacts/prototype2-results-3.9/prototype2_results.txt" ]; then
+          cat artifacts/prototype2-results-3.9/prototype2_results.txt >> PERFORMANCE_REPORT.md
+        else
+          echo "Results file not found" >> PERFORMANCE_REPORT.md
+        fi
         echo "\`\`\`" >> PERFORMANCE_REPORT.md
         
     - name: Upload Performance Report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: performance-report
         path: PERFORMANCE_REPORT.md
@@ -212,7 +230,7 @@ jobs:
         echo "=========================================="
         echo ""
         echo "Traditional Neural Networks:"
-        echo "- GPT-3: 175B parameters, $4.6M training cost"
+        echo "- GPT-3: 175B parameters, \$4.6M training cost"
         echo "- Memory: 100s of GB"
         echo "- Scaling: Compute ∝ Parameters³ (Exponential)"
         echo ""
@@ -225,10 +243,10 @@ jobs:
         echo "==================="
         echo "Traditional AI (1000× scale):"
         echo "- Compute: 1,000,000,000× increase"
-        echo "- Cost: $4.6B"
+        echo "- Cost: \$4.6B"
         echo ""
         echo "Prototype2 (1000× scale to 16,000 entities):"
         echo "- Compute: 1,000× increase (if O(n) scaling)"
-        echo "- Cost: ~$4,600"
+        echo "- Cost: ~\$4,600"
         echo ""
         echo "This represents a 1,000,000× efficiency improvement!"

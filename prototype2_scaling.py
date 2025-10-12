@@ -3,6 +3,7 @@ HoloLifeX6 Prototype2: Polynomial Scaling Test
 ✅ 16 entities across 8 specialized domains
 ✅ Performance monitoring and scaling metrics
 ✅ Polynomial scaling demonstration
+✅ Fixed performance metrics bug
 """
 import numpy as np
 from collections import deque
@@ -250,7 +251,8 @@ class ScalableEntityNetwork:
             'cpu_percent': process.cpu_percent(),
             'entities': len(self.entities),
             'cycle': self.cycle_count,
-            'coherence': self.get_coherence()
+            'coherence': self.get_coherence(),
+            'step_time_ms': 0.0  # Will be updated in evolve_step
         }
 
     def evolve_step(self, system_state):
@@ -263,6 +265,11 @@ class ScalableEntityNetwork:
 
         current_coherence = self.get_coherence()
         if current_coherence < 0.05:  # Lower threshold for larger network
+            # Still record performance even when no insights generated
+            step_time = (time.time() - start_time) * 1000
+            perf_metrics = self.measure_performance()
+            perf_metrics['step_time_ms'] = step_time
+            self.performance_metrics.append(perf_metrics)
             self.cycle_count += 1
             return insights
 
@@ -305,10 +312,10 @@ class ScalableEntityNetwork:
 
                 selected_entity.broadcast_flash()
 
-        # Performance monitoring
-        step_time = time.time() - start_time
+        # Performance monitoring - FIXED: Always calculate step_time
+        step_time = (time.time() - start_time) * 1000  # Convert to ms
         perf_metrics = self.measure_performance()
-        perf_metrics['step_time_ms'] = step_time * 1000
+        perf_metrics['step_time_ms'] = step_time
         self.performance_metrics.append(perf_metrics)
 
         self.cycle_count += 1
@@ -363,7 +370,15 @@ class ScalableEntityNetwork:
 
     def get_performance_summary(self):
         if not self.performance_metrics:
-            return {}
+            return {
+                'avg_memory_mb': 0,
+                'max_memory_mb': 0,
+                'avg_step_time_ms': 0,
+                'max_step_time_ms': 0,
+                'final_coherence': 0,
+                'avg_coherence': 0,
+                'total_cycles': 0
+            }
         
         metrics = list(self.performance_metrics)
         return {
@@ -443,9 +458,12 @@ class Prototype2:
                 avg_reward = np.mean(self.reward_history) if self.reward_history else 0
                 current_coherence = self.system_state['coherence']
                 perf = self.network.measure_performance()
+                # Get most recent step time from metrics
+                recent_metrics = list(self.network.performance_metrics)
+                step_time = recent_metrics[-1]['step_time_ms'] if recent_metrics else 0
                 print(f"📊 Cycle {i}: Coherence={current_coherence:.3f}, "
                       f"Reward={avg_reward:.3f}, Insights={len(self.insights_log)}, "
-                      f"Mem={perf['memory_mb']:.1f}MB, Time={perf['step_time_ms']:.1f}ms")
+                      f"Mem={perf['memory_mb']:.1f}MB, Time={step_time:.2f}ms")
 
     def get_metrics(self):
         perf_summary = self.network.get_performance_summary()
@@ -479,8 +497,8 @@ class Prototype2:
         print(f"\n📈 Performance Metrics:")
         print(f"   Average Memory: {metrics['avg_memory_mb']:.1f} MB")
         print(f"   Max Memory: {metrics['max_memory_mb']:.1f} MB") 
-        print(f"   Average Step Time: {metrics['avg_step_time_ms']:.1f} ms")
-        print(f"   Max Step Time: {metrics['max_step_time_ms']:.1f} ms")
+        print(f"   Average Step Time: {metrics['avg_step_time_ms']:.2f} ms")
+        print(f"   Max Step Time: {metrics['max_step_time_ms']:.2f} ms")
         
         print(f"\n🧠 Intelligence Metrics:")
         print(f"   Final Coherence: {metrics['final_coherence']:.3f}")
@@ -498,8 +516,8 @@ class Prototype2:
         entity_ratio = metrics['entities'] / 4
         
         print(f"   Entity scaling: 4 → {metrics['entities']} ({entity_ratio:.1f}x)")
-        print(f"   Memory scaling: {prototype1_memory}MB → {metrics['avg_memory_mb']:.1f}MB ({memory_ratio:.1f}x)")
-        print(f"   Time scaling: {prototype1_time}ms → {metrics['avg_step_time_ms']:.1f}ms ({time_ratio:.1f}x)")
+        print(f"   Memory scaling: {prototype1_memory}MB → {metrics['avg_memory_mb']:.1f}MB ({memory_ratio:.2f}x)")
+        print(f"   Time scaling: {prototype1_time}ms → {metrics['avg_step_time_ms']:.2f}ms ({time_ratio:.2f}x)")
         
         # Check for polynomial scaling
         if memory_ratio <= entity_ratio * 2 and time_ratio <= entity_ratio * 2:
